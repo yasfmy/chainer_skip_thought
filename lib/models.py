@@ -14,7 +14,7 @@ class BaseModel(chainer.Chain):
         cuda.get_device(gpu_id).use()
         self.to_gpu()
 
-class ConditionalStatefulGRU(link.Chain)
+class ConditionalStatefulGRU(link.Chain):
     def __init__(self, n_units, n_inputs=None, n_conditions=None, init=None,
                 inner_init=None, bias_init=0):
         if n_inputs is None:
@@ -103,7 +103,6 @@ class SkipThought(BaseModel):
             word_embedding = self.source_embed(x)
             condition = self.encoder(word_embedding)
         return condition
-
 
     def decode_once(self, previous_y, next_y, condition):
         previous_word_embedding = self.target_embed(previous_y)
