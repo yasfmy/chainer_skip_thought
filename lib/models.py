@@ -110,7 +110,7 @@ class SkipThought(BaseModel):
         previous_h = self.previous_decoder(previous_word_embedding, condition)
         next_h = self.next_decoder(next_word_embedding, condition)
         previous_y = self.previous_output_weight(previous_h)
-        next_y = self.next_output_weight(next_y)
+        next_y = self.next_output_weight(next_h)
         return previous_y, next_y
 
     @staticmethod
