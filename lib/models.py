@@ -126,3 +126,6 @@ class SkipThought(BaseModel):
             previous_y, next_y = self.decode_once(previous_y, next_y, condition)
             loss += self.loss(previous_y, previous_t, next_y, next_t)
         return loss
+
+    def forward_test(self, source, limit):
+        pass
