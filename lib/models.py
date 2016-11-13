@@ -82,8 +82,9 @@ class SkipThought(BaseModel):
                  source_vocabulary_size,
                  embed_size,
                  hidden_size,
-                 target_vocabulary_size):
-
+                 target_vocabulary_size=None):
+        if target_vocabulary_size is None:
+            target_vocabulary_size = source_vocabulary_size
         super().__init__(
             source_embed = L.EmbedID(source_vocabulary_size, embed_size),
             encoder=L.StatefulGRU(embed_size, hidden_size),
