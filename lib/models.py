@@ -118,11 +118,11 @@ class SkipThought(BaseModel):
         return (F.softmax_cross_entropy(previous_y, previous_t) +
                 F.softmax_cross_entropy(next_y, next_t))
 
-    def forward_train(self, source, previous_target, next_target):
-        condition = self.encode(source)
+    def forward_train(self, source_sentence, previous_sentence, next_sentence):
+        condition = self.encode(source_sentence)
         loss = 0
         for previous_y, previous_t, next_y, next_t in zip(
-            previous_target, previous_target[1:], next_target, next_target[1:]):
+            previous_sentence, previous_sentence[1:], next_sentence, next_sentence[1:]):
             previous_y, next_y = self.decode_once(previous_y, next_y, condition)
             loss += self.loss(previous_y, previous_t, next_y, next_t)
         return loss
