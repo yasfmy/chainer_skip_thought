@@ -1,6 +1,7 @@
 import chainer
 import chainer.functions as F
 import chainer.links as L
+from chainer import cuda
 from chainer.functions.activation import sigmoid
 from chainer.functions.activation import tanh
 from chainer import link
@@ -9,7 +10,9 @@ from chainer.links.connection import linear
 import numpy as np
 
 class BaseModel(chainer.Chain):
-    pass
+    def use_gpu(self, gpu_id):
+        cuda.get_device(gpu_id).use()
+        self.to_gpu()
 
 class ConditionalStatefulGRU(link.Chain)
     def __init__(self, n_units, n_inputs=None, n_conditions=None, init=None,
