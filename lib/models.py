@@ -127,5 +127,19 @@ class SkipThought(BaseModel):
             loss += self.loss(previous_y, previous_t, next_y, next_t)
         return loss
 
-    def forward_test(self, source, limit):
+    def forward_test(self, source, limit, bos_id, eos_id):
+        batch_size = len(source[0])
+        condition = self.encode(source)
+        previous_prediction = []
+        next_prediction = []
+        previous_y, next_y = [bos_id for _ in range(batch_size)]
+        while True:
+            previous_y, next_y = self.decode_once(previous_y, next_y, condition)
+            previous_prediction.append([int(w) for w in previous_y.data.argmax(1)])
+            next_prediction.append([int(w) for w in next_y.data.argmax(1)])
+            if len(previous_prediction) >= limit and len(next_prediction) >= limit:
+                break
+        return previous_prediction, next_prediction
+
+    def inference(self):
         pass
