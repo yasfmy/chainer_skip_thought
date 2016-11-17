@@ -1,3 +1,5 @@
+from itertools import chain
+
 import chainer
 import chainer.functions as F
 import chainer.links as L
@@ -80,6 +82,9 @@ class ConditionalStatefulGRU(link.Chain):
         self.h = h_new
         return self.h
 
+def prepare_input(xp, input_, dtype):
+    return chainer.Variable(xp.array(input_, dtype=dtype))
+
 class SkipThought(BaseModel):
     def __init__(self,
                  source_vocabulary_size,
@@ -104,27 +109,25 @@ class SkipThought(BaseModel):
             condition = self.encoder(word_embedding)
         return condition
 
-    def decode_once(self, previous_y, next_y, condition):
-        previous_word_embedding = self.target_embed(previous_y)
-        next_word_embedding = self.target_embed(next_y)
-        previous_h = self.previous_decoder(previous_word_embedding, condition)
-        next_h = self.next_decoder(next_word_embedding, condition)
-        previous_y = self.previous_output_weight(previous_h)
-        next_y = self.next_output_weight(next_h)
-        return previous_y, next_y
+    def decode_once(self, y, condition, position):
+        word_embedding = self.target_embed(y)
+        h = self['{}_decoder'.format(position)](word_embedding, condition)
+        y = self['{}_output_weight'.format(position)](h)
+        return y
 
     @staticmethod
-    def loss(previous_y, previous_t, next_y, next_t):
-        return (F.softmax_cross_entropy(previous_y, previous_t) +
-                F.softmax_cross_entropy(next_y, next_t))
+    def loss(prediction, t):
+        return F.softmax_cross_entropy(prediction, t)
 
     def forward_train(self, source_sentence, previous_sentence, next_sentence):
         condition = self.encode(source_sentence)
         loss = 0
-        for previous_y, previous_t, next_y, next_t in zip(
-            previous_sentence, previous_sentence[1:], next_sentence, next_sentence[1:]):
-            previous_y, next_y = self.decode_once(previous_y, next_y, condition)
-            loss += self.loss(previous_y, previous_t, next_y, next_t)
+        for y, t in zip(previous_sentence, previous_sentence[1:]):
+            prediction = self.decode_once(y, condition, 'previous')
+            loss += self.loss(prediction, t)
+        for y, t in zip(next_sentence, next_sentence[1:]):
+            prediction = self.decode_once(y, condition, 'next')
+            loss += self.loss(prediction, t)
         return loss
 
     def forward_test(self, source, limit, bos_id, eos_id):
@@ -132,13 +135,29 @@ class SkipThought(BaseModel):
         condition = self.encode(source)
         previous_prediction = []
         next_prediction = []
-        previous_y, next_y = [bos_id for _ in range(batch_size)]
+        y = start_y = chainer.Variable(self.xp.array(
+                        [bos_id for _ in range(batch_size)], dtype=self.xp.int32))
         while True:
-            previous_y, next_y = self.decode_once(previous_y, next_y, condition)
-            previous_prediction.append([int(w) for w in previous_y.data.argmax(1)])
-            next_prediction.append([int(w) for w in next_y.data.argmax(1)])
-            if len(previous_prediction) >= limit and len(next_prediction) >= limit:
+            y = self.decode_once(y, condition, 'previous')
+            p = [int(w) for w in y.data.argmax(1)]
+            previous_prediction.append(p)
+            if all(w == eos_id for w in p):
                 break
+            elif len(previous_prediction) >= limit:
+                previous_prediction.append([eos_id for _ in range(batch_size)])
+                break
+            y = prepare_input(self.xp, p, self.xp.int32)
+        y = start_y
+        while True:
+            y = self.decode_once(y, condition, 'next')
+            p = [int(w) for w in y.data.argmax(1)]
+            next_prediction.append(p)
+            if all(w == eos_id for w in p):
+                break
+            elif len(next_prediction) >= limit:
+                next_prediction.append([eos_id for _ in range(batch_size)])
+                break
+            y = prepare_input(self.xp, p, self.xp.int32)
         return previous_prediction, next_prediction
 
     def inference(self):
