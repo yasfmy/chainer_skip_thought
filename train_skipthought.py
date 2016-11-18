@@ -25,8 +25,9 @@ def main(args):
     text = ['We describe an approach for unsupervised learning of a generic distributed sentence encoder',
             'Using the continuity of text from books we train an encoder-decoder model that tries to reconstruct the surrounding sentences of an encoded passage',
             'Sentences that share semnatic and syntactic properties are thus mapped to similar vector representations']
-    words = [['<s>'] + text_to_word_sequence(sentence.lower()) + ['</s>'] for sentence in text]
+    words = [text_to_word_sequence(sentence.lower()) for sentence in text]
     vocab, id2word = build_vocabulary(flatten(words), args.vocabulary)
+    words = [['<s>'] + word + ['</s>'] for word in words]
 
     skip_thought = SkipThought(len(vocab), args.embed, args.hidden)
     skip_thought.use_gpu(args.gpu)
