@@ -44,9 +44,6 @@ def main(args):
     source_sentence = F.transpose_sequence([xp.array([vocab[word] for word in words[1]], dtype=np.int32)])
     next_sentence = F.transpose_sequence([xp.array([vocab[word] for word in words[2]], dtype=np.int32)])
 
-    print(vocab['</s>'])
-    print(vocab['<s>'])
-
     for epoch in range(n_epoch):
         skip_thought.cleargrads()
         loss = skip_thought.forward_train(source_sentence, previous_sentence, next_sentence)
