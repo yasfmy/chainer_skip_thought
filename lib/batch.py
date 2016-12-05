@@ -1,8 +1,6 @@
 from itertools import islice
 from operator import length_hint
 
-from chainer import functions as F
-
 def read_dataset(filename, eos_token):
     with open(filename) as f:
         return [line.strip().split() + [eos_token] for line in f]
