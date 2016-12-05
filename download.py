@@ -13,8 +13,8 @@ url_list = (
 def save_file_from_url(url, filename=None):
     response = urlopen(url)
     filename = os.path.basename(url) if not filename else filename
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(str(response.read()))
+    with open(filename, 'w') as f:
+        f.write(response.read().decode('utf-8'))
 
 if __name__ == '__main__':
     for url in url_list:
