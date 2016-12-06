@@ -14,7 +14,7 @@ class BaseModel(chainer.Chain):
         cuda.get_device(gpu_id).use()
         self.to_gpu()
 
-    def __prepare_input(x, dtype):
+    def _prepare_input(self, x, dtype=None):
         return chainer.Variable(self.xp.array(x, dtype=dtype))
 
 class ConditionalStatefulGRU(link.Chain):
@@ -118,7 +118,10 @@ class SkipThought(BaseModel):
         return F.softmax_cross_entropy(prediction, t)
 
     def forward_train(self, source_sentence, previous_sentence, next_sentence):
-        condition = self.encode(source_sentence)
+        previous_sentence = self._prepare_input(previous_sentence, self.xp.int32)
+        next_sentence = self._prepare_input(next_sentence, self.xp.int32)
+        condition = self.encode(
+                        self._prepare_input(source_sentence, self.xp.int32))
         loss = 0
         for y, t in zip(previous_sentence, previous_sentence[1:]):
             prediction = self.decode_once(y, condition, 'previous')
@@ -133,7 +136,7 @@ class SkipThought(BaseModel):
         condition = self.encode(source)
         previous_prediction = []
         next_prediction = []
-        y = start_y = self.__prepare_input(
+        y = start_y = self._prepare_input(
                         [bos_id for _ in range(batch_size)], dtype=self.xp.int32)
         while True:
             y = self.decode_once(y, condition, 'previous')
@@ -144,7 +147,7 @@ class SkipThought(BaseModel):
             elif len(previous_prediction) >= limit:
                 previous_prediction.append([eos_id for _ in range(batch_size)])
                 break
-            y = self.__prepare_input(p, self.xp.int32)
+            y = self._prepare_input(p, self.xp.int32)
         y = start_y
         while True:
             y = self.decode_once(y, condition, 'next')
@@ -155,7 +158,7 @@ class SkipThought(BaseModel):
             elif len(next_prediction) >= limit:
                 next_prediction.append([eos_id for _ in range(batch_size)])
                 break
-            y = self.__prepare_input(p, self.xp.int32)
+            y = self._prepare_input(p, self.xp.int32)
         return previous_prediction, next_prediction
 
     def inference(self):
