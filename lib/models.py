@@ -9,12 +9,13 @@ from chainer.functions.activation import tanh
 from chainer import link
 from chainer.links.connection import linear
 
-import numpy as np
-
 class BaseModel(chainer.Chain):
     def use_gpu(self, gpu_id):
         cuda.get_device(gpu_id).use()
         self.to_gpu()
+
+    def __prepare_input(x, dtype):
+        return chainer.Variable(self.xp.array(x, dtype=dtype))
 
 class ConditionalStatefulGRU(link.Chain):
     def __init__(self, n_units, n_inputs=None, n_conditions=None, init=None,
@@ -82,9 +83,6 @@ class ConditionalStatefulGRU(link.Chain):
         self.h = h_new
         return self.h
 
-def prepare_input(xp, input_, dtype):
-    return chainer.Variable(xp.array(input_, dtype=dtype))
-
 class SkipThought(BaseModel):
     def __init__(self,
                  source_vocabulary_size,
@@ -135,7 +133,7 @@ class SkipThought(BaseModel):
         condition = self.encode(source)
         previous_prediction = []
         next_prediction = []
-        y = start_y = chainer.Variable(self.xp.array(
+        y = start_y = self.__prepare_input(
                         [bos_id for _ in range(batch_size)], dtype=self.xp.int32))
         while True:
             y = self.decode_once(y, condition, 'previous')
@@ -146,7 +144,7 @@ class SkipThought(BaseModel):
             elif len(previous_prediction) >= limit:
                 previous_prediction.append([eos_id for _ in range(batch_size)])
                 break
-            y = prepare_input(self.xp, p, self.xp.int32)
+            y = self.__prepare_input(p, self.xp.int32)
         y = start_y
         while True:
             y = self.decode_once(y, condition, 'next')
@@ -157,7 +155,7 @@ class SkipThought(BaseModel):
             elif len(next_prediction) >= limit:
                 next_prediction.append([eos_id for _ in range(batch_size)])
                 break
-            y = prepare_input(self.xp, p, self.xp.int32)
+            y = self.__prepare_input(p, self.xp.int32)
         return previous_prediction, next_prediction
 
     def inference(self):
