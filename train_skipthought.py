@@ -9,6 +9,7 @@ from lib.tools.text.vocabulary import build_vocabulary
 from lib.tools.text.preprocessing import text_to_word_sequence
 from lib.tools.flatten import flatten
 from lib.models import SkipThought
+from lib.batch import read_dataset, sentences_to_token_ids, generate_batch, generate_pair_batch
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -22,12 +23,9 @@ def parse_args():
     return parser.parse_args()
 
 def main(args):
-    text = ['We describe an approach for unsupervised learning of a generic distributed sentence encoder',
-            'Using the continuity of text from books we train an encoder-decoder model that tries to reconstruct the surrounding sentences of an encoded passage',
-            'Sentences that share semnatic and syntactic properties are thus mapped to similar vector representations']
-    words = [text_to_word_sequence(sentence.lower()) for sentence in text]
-    vocab, id2word = build_vocabulary(flatten(words), args.vocabulary)
-    words = [['<s>'] + word + ['</s>'] for word in words]
+    train = read_dataset('ptb.train.txt')
+    vocab, id2word = build_vocabulary(flatten(train))
+    train_iter = generate_batch(sentences_to_token_ids(train, vocab), args.batch)
 
     skip_thought = SkipThought(len(vocab), args.embed, args.hidden)
     skip_thought.use_gpu(args.gpu)
@@ -35,24 +33,23 @@ def main(args):
     optimizer.setup(skip_thought)
     optimizer.add_hook(GradientClipping(args.gradient_clipping))
 
-    xp = skip_thought.xp
-
     n_epoch = args.epoch
     batch_size = args.batch
-
-    previous_sentence = F.transpose_sequence([xp.array([vocab[word] for word in words[0]], dtype=np.int32)])
-    source_sentence = F.transpose_sequence([xp.array([vocab[word] for word in words[1]], dtype=np.int32)])
-    next_sentence = F.transpose_sequence([xp.array([vocab[word] for word in words[2]], dtype=np.int32)])
+    N = len(train)
 
     for epoch in range(n_epoch):
-        skip_thought.cleargrads()
-        loss = skip_thought.forward_train(source_sentence, previous_sentence, next_sentence)
-        print(loss.data)
-        loss.backward()
-        optimizer.update()
-        previous_prediction, next_prediction = skip_thought.forward_test(source_sentence, 50, vocab['<s>'], vocab['</s>'])
-        print(' '.join([id2word[id_[0]] for id_ in previous_prediction]))
-        print(' '.join([id2word[id_[0]] for id_ in next_prediction]))
+        sum_loss = 0
+        for prev_batch, source_batch, next_batch in generate_pair_batch(train_iter):
+            skip_thought.cleargrads()
+            loss = skip_thought.forward_train(source_batch, prev_batch, next_batch)
+            loss.backward()
+            optimizer.update()
+
+            sum_loss += loss.data * len(source_batch)
+        print(loss / N)
+        #previous_prediction, next_prediction = skip_thought.forward_test(source_sentence, 50, vocab['<s>'], vocab['</s>'])
+        #print(' '.join([id2word[id_[0]] for id_ in previous_prediction]))
+        #print(' '.join([id2word[id_[0]] for id_ in next_prediction]))
 
 
 if __name__ == '__main__':
