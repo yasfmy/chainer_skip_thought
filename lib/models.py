@@ -134,7 +134,7 @@ class SkipThought(BaseModel):
         previous_prediction = []
         next_prediction = []
         y = start_y = self.__prepare_input(
-                        [bos_id for _ in range(batch_size)], dtype=self.xp.int32))
+                        [bos_id for _ in range(batch_size)], dtype=self.xp.int32)
         while True:
             y = self.decode_once(y, condition, 'previous')
             p = [int(w) for w in y.data.argmax(1)]
