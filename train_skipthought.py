@@ -25,7 +25,7 @@ def parse_args():
 def main(args):
     train = read_dataset('ptb.train.txt')
     vocab, id2word = build_vocabulary(flatten(train))
-    train_iter = generate_batch(sentences_to_token_ids(train, vocab), args.batch)
+    train_sentences = sentences_to_token_ids(train, vocab)
 
     skip_thought = SkipThought(len(vocab), args.embed, args.hidden)
     skip_thought.use_gpu(args.gpu)
@@ -39,14 +39,13 @@ def main(args):
 
     for epoch in range(n_epoch):
         sum_loss = 0
-        for prev_batch, source_batch, next_batch in generate_pair_batch(train_iter):
+        for prev_batch, source_batch, next_batch in generate_pair_batch(train_sentences, batch_size):
             skip_thought.cleargrads()
             loss = skip_thought.forward_train(source_batch, prev_batch, next_batch)
             loss.backward()
             optimizer.update()
-
-            sum_loss += loss.data * len(source_batch)
-        print(loss / N)
+            sum_loss += loss.data * batch_size
+        print(loss.data / N)
         #previous_prediction, next_prediction = skip_thought.forward_test(source_sentence, 50, vocab['<s>'], vocab['</s>'])
         #print(' '.join([id2word[id_[0]] for id_ in previous_prediction]))
         #print(' '.join([id2word[id_[0]] for id_ in next_prediction]))
