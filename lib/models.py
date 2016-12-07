@@ -97,8 +97,7 @@ class SkipThought(BaseModel):
             target_embed=L.EmbedID(target_vocabulary_size, embed_size),
             previous_decoder=ConditionalStatefulGRU(hidden_size, embed_size, hidden_size),
             next_decoder=ConditionalStatefulGRU(hidden_size, embed_size, hidden_size),
-            previous_output_weight=L.Linear(hidden_size, target_vocabulary_size),
-            next_output_weight=L.Linear(hidden_size, target_vocabulary_size),
+            output_weight=L.Linear(hidden_size, target_vocabulary_size),
         )
 
     def reset_state(self):
@@ -117,7 +116,7 @@ class SkipThought(BaseModel):
         y = self._prepare_input(y, self.xp.int32)
         word_embedding = self.target_embed(y)
         h = self['{}_decoder'.format(position)](word_embedding, condition)
-        y = self['{}_output_weight'.format(position)](h)
+        y = self.output_weight(h)
         return y
 
     def loss(self, prediction, t):
