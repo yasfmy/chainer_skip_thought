@@ -95,33 +95,37 @@ class SkipThought(BaseModel):
             source_embed = L.EmbedID(source_vocabulary_size, embed_size),
             encoder=L.StatefulGRU(embed_size, hidden_size),
             target_embed=L.EmbedID(target_vocabulary_size, embed_size),
-            previous_decoder=ConditionalStatefulGRU(embed_size, hidden_size, hidden_size),
-            next_decoder=ConditionalStatefulGRU(embed_size, hidden_size, hidden_size),
-            previous_output_weight=L.Linear(hidden_size, target_vocabulary_size),
-            next_output_weight=L.Linear(hidden_size, target_vocabulary_size),
+            previous_decoder=ConditionalStatefulGRU(hidden_size, embed_size, hidden_size),
+            next_decoder=ConditionalStatefulGRU(hidden_size, embed_size, hidden_size),
+            output_weight=L.Linear(hidden_size, target_vocabulary_size),
         )
 
+    def reset_state(self):
+        self.encoder.reset_state()
+        self.previous_decoder.reset_state()
+        self.next_decoder.reset_state()
+
     def encode(self, source):
+        source = self._prepare_input(source, self.xp.int32)
         for x in source:
             word_embedding = self.source_embed(x)
             condition = self.encoder(word_embedding)
         return condition
 
     def decode_once(self, y, condition, position):
+        y = self._prepare_input(y, self.xp.int32)
         word_embedding = self.target_embed(y)
         h = self['{}_decoder'.format(position)](word_embedding, condition)
-        y = self['{}_output_weight'.format(position)](h)
+        y = self.output_weight(h)
         return y
 
-    @staticmethod
-    def loss(prediction, t):
+    def loss(self, prediction, t):
+        t = self._prepare_input(t, self.xp.int32)
         return F.softmax_cross_entropy(prediction, t)
 
     def forward_train(self, source_sentence, previous_sentence, next_sentence):
-        previous_sentence = self._prepare_input(previous_sentence, self.xp.int32)
-        next_sentence = self._prepare_input(next_sentence, self.xp.int32)
-        condition = self.encode(
-                        self._prepare_input(source_sentence, self.xp.int32))
+        self.reset_state()
+        condition = self.encode(source_sentence)
         loss = 0
         for y, t in zip(previous_sentence, previous_sentence[1:]):
             prediction = self.decode_once(y, condition, 'previous')
@@ -132,12 +136,12 @@ class SkipThought(BaseModel):
         return loss
 
     def forward_test(self, source, limit, bos_id, eos_id):
+        self.reset_state()
         batch_size = len(source[0])
         condition = self.encode(source)
         previous_prediction = []
         next_prediction = []
-        y = start_y = self._prepare_input(
-                        [bos_id for _ in range(batch_size)], dtype=self.xp.int32)
+        y = start_y = [bos_id for _ in range(batch_size)]
         while True:
             y = self.decode_once(y, condition, 'previous')
             p = [int(w) for w in y.data.argmax(1)]
@@ -147,7 +151,7 @@ class SkipThought(BaseModel):
             elif len(previous_prediction) >= limit:
                 previous_prediction.append([eos_id for _ in range(batch_size)])
                 break
-            y = self._prepare_input(p, self.xp.int32)
+            y = p
         y = start_y
         while True:
             y = self.decode_once(y, condition, 'next')
@@ -158,7 +162,7 @@ class SkipThought(BaseModel):
             elif len(next_prediction) >= limit:
                 next_prediction.append([eos_id for _ in range(batch_size)])
                 break
-            y = self._prepare_input(p, self.xp.int32)
+            y = p
         return previous_prediction, next_prediction
 
     def inference(self):
